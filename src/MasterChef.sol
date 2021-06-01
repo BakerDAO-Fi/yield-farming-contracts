@@ -402,6 +402,8 @@ contract MasterChef is Ownable, ReentrancyGuard{
         
         uint16 harvestFeeRatio;// Charged when harvest, div RATIO_BASE for the real ratio, like 100 for 10%
         address harvestFeeToken;// empty reprsents charged with mainnet token.
+        
+        bool rewardDev;// if reward dev when reward the farmers.
     }
     
     uint256 private constant ACC_SUSHI_PRECISION = 1e12;
@@ -409,10 +411,10 @@ contract MasterChef is Ownable, ReentrancyGuard{
     uint8 public constant ZERO = 0 ;
     uint16 public constant RATIO_BASE = 1000;
     
-    uint8 public constant DEV1_SUSHI_REWARD_RATIO = 55;// div RATIO_BASE
-    uint8 public constant DEV2_SUSHI_REWARD_RATIO = 50;// div RATIO_BASE
-    uint8 public constant DEV3_SUSHI_REWARD_RATIO = 20;// div RATIO_BASE
-    uint16 public constant MINT_SUSHI_REWARD_RATIO = 875;// div RATIO_BASE
+    uint8 public constant DEV1_SUSHI_REWARD_RATIO = 63;// div RATIO_BASE
+    uint8 public constant DEV2_SUSHI_REWARD_RATIO = 57;// div RATIO_BASE
+    uint8 public constant DEV3_SUSHI_REWARD_RATIO = 23;// div RATIO_BASE
+    uint16 public constant MINT_SUSHI_REWARD_RATIO = 857;// div RATIO_BASE
     
     uint16 public constant DEV1_FEE_RATIO = 440;// div RATIO_BASE
     uint16 public constant DEV2_FEE_RATIO = 400;// div RATIO_BASE
@@ -444,14 +446,14 @@ contract MasterChef is Ownable, ReentrancyGuard{
     event EmergencyStop(address indexed user, address to);
     event Add(uint256 rewardForEachBlock, IERC20 lpToken, bool withUpdate, 
     uint256 startBlock, uint256 endBlock, uint256 operationFee, address operationFeeToken, 
-    uint16 harvestFeeRatio, address harvestFeeToken, bool _withSushiTransfer);
-    event SetPoolInfo(uint256 pid, uint256 rewardsOneBlock, bool withUpdate, uint256 startBlock, uint256 endBlock);
+    uint16 harvestFeeRatio, address harvestFeeToken, bool withSushiTransfer, bool rewardDev);
+    event SetPoolInfo(uint256 pid, uint256 rewardsOneBlock, bool withUpdate, uint256 startBlock, uint256 endBlock, bool rewardDev);
     event ClosePool(uint256 pid, address payable to);
     event UpdateDev1Address(address payable dev1Address);
     event UpdateDev2Address(address payable dev2Address);
     event UpdateDev3Address(address payable dev3Address);
     event UpdateBuyAddress(address payable buyAddress);
-    event AddRewardForPool(uint256 pid, uint256 _addSushiPerPool, uint256 _addSushiPerBlock, bool withSushiTransfer);
+    event AddRewardForPool(uint256 pid, uint256 addSushiPerPool, uint256 addSushiPerBlock, bool withSushiTransfer);
     
     event SetPoolOperationFee(uint256 pid, uint256 operationFee, address operationFeeToken, bool feeUpdate, bool feeTokenUpdate);
     event SetPoolHarvestFee(uint256 pid, uint16 harvestFeeRatio, address harvestFeeToken, bool feeRatioUpdate, bool feeTokenUpdate);
@@ -498,7 +500,7 @@ contract MasterChef is Ownable, ReentrancyGuard{
     // Zero lpToken represents HT pool.
     function add(uint256 _rewardForEachBlock, IERC20 _lpToken, bool _withUpdate, 
     uint256 _startBlock, uint256 _endBlock, uint256 _operationFee, address _operationFeeToken, 
-    uint16 _harvestFeeRatio, address _harvestFeeToken, bool _withSushiTransfer) public onlyOwner {
+    uint16 _harvestFeeRatio, address _harvestFeeToken, bool _withSushiTransfer, bool _rewardDev) public onlyOwner {
         //require(_lpToken != IERC20(ZERO), "lpToken can not be zero!");
         require(_rewardForEachBlock > ZERO, "rewardForEachBlock must be greater than zero!");
         require(_startBlock < _endBlock, "start block must less than end block!");
@@ -517,17 +519,18 @@ contract MasterChef is Ownable, ReentrancyGuard{
             operationFee: _operationFee,
             operationFeeToken: _operationFeeToken,
             harvestFeeRatio: _harvestFeeRatio,
-            harvestFeeToken: _harvestFeeToken
+            harvestFeeToken: _harvestFeeToken,
+            rewardDev: _rewardDev
         }));
         if(_withSushiTransfer){
             uint256 amount = (_endBlock - (block.number > _startBlock ? block.number : _startBlock)).mul(_rewardForEachBlock);
             sushi.transferFrom(msg.sender, address(this), amount);
         }
-        emit Add(_rewardForEachBlock, _lpToken, _withUpdate, _startBlock, _endBlock, _operationFee, _operationFeeToken, _harvestFeeRatio, _harvestFeeToken, _withSushiTransfer);
+        emit Add(_rewardForEachBlock, _lpToken, _withUpdate, _startBlock, _endBlock, _operationFee, _operationFeeToken, _harvestFeeRatio, _harvestFeeToken, _withSushiTransfer, _rewardDev);
     }
 
     // Update the given pool's pool info. Can only be called by the owner. 
-    function setPoolInfo(uint256 _pid, uint256 _rewardForEachBlock, bool _withUpdate, uint256 _startBlock, uint256 _endBlock) public onlyOwner {
+    function setPoolInfo(uint256 _pid, uint256 _rewardForEachBlock, bool _withUpdate, uint256 _startBlock, uint256 _endBlock, bool _rewardDev) public onlyOwner {
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -549,7 +552,8 @@ contract MasterChef is Ownable, ReentrancyGuard{
         if(_rewardForEachBlock > ZERO){
             pool.rewardForEachBlock = _rewardForEachBlock;
         }
-        emit SetPoolInfo(_pid, _rewardForEachBlock, _withUpdate, _startBlock, _endBlock);
+        pool.rewardDev = _rewardDev;
+        emit SetPoolInfo(_pid, _rewardForEachBlock, _withUpdate, _startBlock, _endBlock, _rewardDev);
     }
     
     function setAllPoolOperationFee(uint256 _operationFee, address _operationFeeToken, bool _feeUpdate, bool _feeTokenUpdate) public onlyOwner {
@@ -630,10 +634,13 @@ contract MasterChef is Ownable, ReentrancyGuard{
         }
         uint256 sushiReward = multiplier.mul(pool.rewardForEachBlock);
         if(sushiReward > ZERO){
-            transferToDev(pool, dev1Address, DEV1_SUSHI_REWARD_RATIO, sushiReward);
-            transferToDev(pool, dev2Address, DEV2_SUSHI_REWARD_RATIO, sushiReward);
-            transferToDev(pool, dev3Address, DEV3_SUSHI_REWARD_RATIO, sushiReward);
-            uint256 poolSushiReward = sushiReward.mul(MINT_SUSHI_REWARD_RATIO).div(RATIO_BASE);
+            uint256 poolSushiReward = sushiReward;
+            if(pool.rewardDev){
+                transferToDev(pool, dev1Address, DEV1_SUSHI_REWARD_RATIO, sushiReward);
+                transferToDev(pool, dev2Address, DEV2_SUSHI_REWARD_RATIO, sushiReward);
+                transferToDev(pool, dev3Address, DEV3_SUSHI_REWARD_RATIO, sushiReward);
+                poolSushiReward = sushiReward.mul(MINT_SUSHI_REWARD_RATIO).div(RATIO_BASE);
+            }
             pool.accSushiPerShare = pool.accSushiPerShare.add(poolSushiReward.mul(ACC_SUSHI_PRECISION).div(lpSupply));
         }
     }
