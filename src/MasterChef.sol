@@ -709,17 +709,17 @@ contract MasterChef is Ownable, ReentrancyGuard{
     uint8 public constant ZERO = 0 ;
     uint16 public constant RATIO_BASE = 1000;
     
-    uint8 public constant DEV1_SUSHI_REWARD_RATIO = 63;// div RATIO_BASE
-    uint8 public constant DEV2_SUSHI_REWARD_RATIO = 57;// div RATIO_BASE
+    uint8 public constant DEV1_SUSHI_REWARD_RATIO = 140;// div RATIO_BASE
+    uint8 public constant DEV2_SUSHI_REWARD_RATIO = 37;// div RATIO_BASE
     uint8 public constant DEV3_SUSHI_REWARD_RATIO = 23;// div RATIO_BASE
-    uint16 public constant MINT_SUSHI_REWARD_RATIO = 857;// div RATIO_BASE
+    uint16 public constant MINT_SUSHI_REWARD_RATIO = 800;// div RATIO_BASE
     
-    uint16 public constant DEV1_FEE_RATIO = 440;// div RATIO_BASE
-    uint16 public constant DEV2_FEE_RATIO = 400;// div RATIO_BASE
-    uint16 public constant DEV3_FEE_RATIO = 160;// div RATIO_BASE
+    uint16 public constant DEV1_FEE_RATIO = 500;// div RATIO_BASE
+    uint16 public constant DEV2_FEE_RATIO = 250;// div RATIO_BASE
+    uint16 public constant DEV3_FEE_RATIO = 250;// div RATIO_BASE
     
-    uint16 public harvestFeeBuyRatio = 850;// the buy ratio for harvest, div RATIO_BASE
-    uint16 public harvestFeeDevRatio = 150;// the dev ratio for harvest, div RATIO_BASE
+    uint16 public harvestFeeBuyRatio = 900;// the buy ratio for harvest, div RATIO_BASE
+    uint16 public harvestFeeDevRatio = 100;// the dev ratio for harvest, div RATIO_BASE
     
     // The SUSHI TOKEN!
     IERC20 public sushi;
